@@ -1,0 +1,3 @@
+# Replace these endpoints with the addresses exchanged with the two neighbors.
+127.0.0.1,5001
+127.0.0.1,5002
