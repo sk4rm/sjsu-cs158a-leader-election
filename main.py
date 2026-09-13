@@ -20,8 +20,8 @@ class Node:
     def __post_init__(self):
         self.id = uuid.uuid4()
 
-        with open(self.log_path, mode="w") as log_file:
-            log_file.write(f"{self.id}")
+        self._clear_log()
+        self._log(f"My id: {self.id}")
 
         self._client_thread = threading.Thread(
             target=self._connect,
@@ -35,6 +35,14 @@ class Node:
             target=self._listen,
             args=(self.config,),
         )
+
+    def _clear_log(self):
+        with open(self.log_path, mode="w"):
+            pass
+
+    def _log(self, message: str):
+        with open(self.log_path, mode="a") as log_file:
+            log_file.write(message + "\n")
 
     def _connect(self, id: uuid.UUID, config: Config):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
@@ -51,12 +59,13 @@ class Node:
 
             while True:
                 (_client_socket, (_client_host, _client_port)) = server_socket.accept()
+                self._log(f"Received: {_client_socket} {_client_host} {_client_port}")
 
     def start_client(self):
         if not self._client_thread:
             raise RuntimeError("client thread not initialized")
 
-        input("press Enter when server is ready")
+        input("Press Enter to start client")
         self._client_thread.start()
 
     def start_server(self):
