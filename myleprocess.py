@@ -17,7 +17,6 @@ class Node:
     _state: int = 0
     _leader: uuid.UUID | None = None
 
-    _id_lock: threading.Lock = field(default_factory=threading.Lock)
     _state_lock: threading.Lock = field(default_factory=threading.Lock)
     _leader_lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -30,7 +29,7 @@ class Node:
 
     def __post_init__(self):
         self._clear_log()
-        self._log(f"My id: {self._id}")
+        self._log(f"My ID: {self._id}")
 
         self._client_thread = threading.Thread(
             target=self._connect,
@@ -70,10 +69,14 @@ class Node:
                         message = Message(self._leader, self._state)
                         client_socket.sendall(message.encode())
                         self._log(f"Sent: uuid={message.uuid}, flag={message.flag}")
+
+                        self._forward_message.clear()
             except TimeoutError:
                 pass
             except ConnectionAbortedError:
-                print("server disconnected")
+                print("connection aborted by local host")
+            except ConnectionResetError:
+                print("connection reset by remote peer")
 
             print(f"leader is {self._leader}")
 
@@ -84,15 +87,17 @@ class Node:
             server_socket.settimeout(self._leader_election_timeout)
             server_socket.listen(1)
 
-            while True:
+            is_leader_elected = False
+
+            while not is_leader_elected:
                 try:
                     (client_socket, (client_host, client_port)) = server_socket.accept()
                 except TimeoutError:
-                    print("shutting down server due to no activity")
+                    print("shutting down server due to inactivity")
                     break
 
                 with client_socket:
-                    while True:
+                    while not is_leader_elected:
                         payload = client_socket.recv(self._buffer_size)
                         if not payload:
                             print(f"client {client_host}:{client_port} disconnected")
@@ -109,7 +114,7 @@ class Node:
 
                         with self._state_lock:
                             self._log(
-                                f"Received: uuid= {message.uuid}, flag={message.flag}, {comparison}, {self._state}"
+                                f"Received: uuid={message.uuid}, flag={message.flag}, {comparison}, {self._state}"
                             )
 
                         if message.uuid < self._id:
@@ -121,12 +126,15 @@ class Node:
                         # Elect new leader (could be self)
 
                         with self._state_lock, self._leader_lock:
-                            self._state = 1
+                            self._state = message.flag
                             self._leader = message.uuid
 
-                            self._log(f"Leader is decided to {self._leader}.")
+                            if message.flag == 1:
+                                self._log(f"Leader is decided to {self._leader}.")
 
-                        self._forward_message.set()
+                            self._forward_message.set()
+
+                            is_leader_elected = self._leader == self._id
 
     def start_client(self):
         if not self._client_thread:
