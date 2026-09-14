@@ -87,9 +87,7 @@ class Node:
             server_socket.settimeout(self._leader_election_timeout)
             server_socket.listen(1)
 
-            is_leader_elected = False
-
-            while not is_leader_elected:
+            while True:
                 try:
                     (client_socket, (client_host, client_port)) = server_socket.accept()
                 except TimeoutError:
@@ -99,7 +97,7 @@ class Node:
                     break
 
                 with client_socket:
-                    while not is_leader_elected:
+                    while True:
                         payload = client_socket.recv(self._buffer_size)
                         if not payload:
                             print(f"client {client_host}:{client_port} disconnected")
@@ -146,7 +144,7 @@ class Node:
         if not self._client_thread:
             raise RuntimeError("client thread not initialized")
 
-        # input("Press Enter to start client\n")
+        input("Press Enter to start client\n")
         self._client_thread.start()
 
     def start_server(self):
