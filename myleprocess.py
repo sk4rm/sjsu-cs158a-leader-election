@@ -25,7 +25,7 @@ class Node:
     _client_thread: threading.Thread | None = None
     _server_thread: threading.Thread | None = None
     _buffer_size: int = 4096
-    _leader_election_timeout: float = 10.0
+    _leader_election_timeout: float = 3.0
 
     def __post_init__(self):
         self._clear_log()
@@ -93,7 +93,9 @@ class Node:
                 try:
                     (client_socket, (client_host, client_port)) = server_socket.accept()
                 except TimeoutError:
-                    print("shutting down server due to inactivity")
+                    print(
+                        f"shutting down server due to {self._leader_election_timeout}s of inactivity"
+                    )
                     break
 
                 with client_socket:
@@ -144,7 +146,7 @@ class Node:
         if not self._client_thread:
             raise RuntimeError("client thread not initialized")
 
-        input("Press Enter to start client\n")
+        # input("Press Enter to start client\n")
         self._client_thread.start()
 
     def start_server(self):
