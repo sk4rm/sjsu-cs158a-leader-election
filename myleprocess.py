@@ -117,24 +117,28 @@ class Node:
                                 f"Received: uuid={message.uuid}, flag={message.flag}, {comparison}, {self._state}"
                             )
 
-                        if message.uuid < self._id:
-                            self._log(
-                                f"Ignored: uuid={message.uuid}, flag={message.flag}"
-                            )
-                            continue
+                            if message.uuid < self._id or (
+                                self._state == 1 and message.flag == 1
+                            ):
+                                self._log(
+                                    f"Ignored: uuid={message.uuid}, flag={message.flag}"
+                                )
+                                continue
 
                         # Elect new leader (could be self)
 
                         with self._state_lock, self._leader_lock:
-                            self._state = (
-                                1 if message.uuid == self._leader else message.flag
-                            )
-                            self._leader = message.uuid
+                            if message.uuid == self._id and message.flag == 0:
+                                self._state = 1
+                                self._leader = self._id
+                            else:
+                                self._state = message.flag
+                                self._leader = message.uuid
 
-                            if message.flag == 1:
+                            if self._state == 1:
                                 self._log(f"Leader is decided to {self._leader}.")
 
-                            self._forward_message.set()
+                        self._forward_message.set()
 
     def start_client(self):
         if not self._client_thread:
