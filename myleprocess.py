@@ -126,15 +126,15 @@ class Node:
                         # Elect new leader (could be self)
 
                         with self._state_lock, self._leader_lock:
-                            self._state = message.flag
+                            self._state = (
+                                1 if message.uuid == self._leader else message.flag
+                            )
                             self._leader = message.uuid
 
                             if message.flag == 1:
                                 self._log(f"Leader is decided to {self._leader}.")
 
                             self._forward_message.set()
-
-                            is_leader_elected = self._leader == self._id
 
     def start_client(self):
         if not self._client_thread:
