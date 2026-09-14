@@ -2,7 +2,7 @@
 name = "leader-election-ring"
 version = "0.1.0"
 description = "A TCP-ring leader election process for CS 158"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = []
 
 [tool.pytest.ini_options]

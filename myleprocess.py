@@ -21,9 +21,12 @@ class Node:
     _state_lock: threading.Lock = field(default_factory=threading.Lock)
     _leader_lock: threading.Lock = field(default_factory=threading.Lock)
 
+    _forward_message: threading.Event = field(default_factory=threading.Event)
+
     _client_thread: threading.Thread | None = None
     _server_thread: threading.Thread | None = None
     _buffer_size: int = 4096
+    _leader_election_timeout: float = 10.0
 
     def __post_init__(self):
         self._clear_log()
@@ -58,14 +61,35 @@ class Node:
             client_socket.sendall(message.encode())
             self._log(f"Sent: uuid={message.uuid}, flag={message.flag}")
 
+            try:
+                while self._forward_message.wait(self._leader_election_timeout):
+                    with self._state_lock, self._leader_lock:
+                        if not self._leader:
+                            raise RuntimeError("unreachable")
+
+                        message = Message(self._leader, self._state)
+                        client_socket.sendall(message.encode())
+                        self._log(f"Sent: uuid={message.uuid}, flag={message.flag}")
+            except TimeoutError:
+                pass
+            except ConnectionAbortedError:
+                print("server disconnected")
+
+            print(f"leader is {self._leader}")
+
     def _listen(self, config: Config):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server_socket.bind(("", config.client_port))
+            server_socket.settimeout(self._leader_election_timeout)
             server_socket.listen(1)
 
             while True:
-                (client_socket, (client_host, client_port)) = server_socket.accept()
+                try:
+                    (client_socket, (client_host, client_port)) = server_socket.accept()
+                except TimeoutError:
+                    print("shutting down server due to no activity")
+                    break
 
                 with client_socket:
                     while True:
@@ -75,27 +99,34 @@ class Node:
                             break
 
                         message = Message.decode(payload)
+                        comparison = (
+                            "greater"
+                            if message.uuid > self._id
+                            else "same"
+                            if message.uuid == self._id
+                            else "less"
+                        )
 
-                        if self._id > message.uuid:
-                            comparison = "greater"
-
-                            with self._state_lock:
-                                self._state = 1
-
-                                with self._leader_lock:
-                                    self._leader = message.uuid
-
-                                self._log(
-                                    f"Received: uuid={message.uuid}, flag={message.flag}, {comparison}, {self._state}"
-                                )
-                        elif self._id < message.uuid:
+                        with self._state_lock:
                             self._log(
-                                f"Received: uuid={message.uuid}, flag={message.flag}, less"
+                                f"Received: uuid= {message.uuid}, flag={message.flag}, {comparison}, {self._state}"
                             )
-                        else:
+
+                        if message.uuid < self._id:
                             self._log(
                                 f"Ignored: uuid={message.uuid}, flag={message.flag}"
                             )
+                            continue
+
+                        # Elect new leader (could be self)
+
+                        with self._state_lock, self._leader_lock:
+                            self._state = 1
+                            self._leader = message.uuid
+
+                            self._log(f"Leader is decided to {self._leader}.")
+
+                        self._forward_message.set()
 
     def start_client(self):
         if not self._client_thread:
