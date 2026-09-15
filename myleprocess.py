@@ -124,22 +124,17 @@ class Node:
                             else "less"
                         )
 
-                        with self._state_lock:
+                        with self._state_lock, self._leader_lock:
                             self._log(
                                 f"Received: uuid={message.uuid}, flag={message.flag}, {comparison}, {self._state}"
                             )
 
-                            if message.uuid < self._id or (
-                                self._state == 1 and message.flag == 1
-                            ):
+                            if message.uuid < self._id or self._state == 1:
                                 self._log(
                                     f"Ignored: uuid={message.uuid}, flag={message.flag}"
                                 )
                                 continue
 
-                        # Elect new leader (could be self)
-
-                        with self._state_lock, self._leader_lock:
                             if message.uuid == self._id and message.flag == 0:
                                 self._state = 1
                                 self._leader = self._id
