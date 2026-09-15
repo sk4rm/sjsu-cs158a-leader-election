@@ -2,5 +2,3 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
-log.txt
-log[0-9].txt

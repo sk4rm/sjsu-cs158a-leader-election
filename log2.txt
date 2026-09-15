@@ -1,0 +1,9 @@
+My ID: 5f3710ac-d470-4aeb-9e28-b6f84454a3a7
+Received: uuid=561e5c49-6cbe-42a7-840f-1780d5973c24, flag=0, less, 0
+Ignored: uuid=561e5c49-6cbe-42a7-840f-1780d5973c24, flag=0
+Sent: uuid=5f3710ac-d470-4aeb-9e28-b6f84454a3a7, flag=0
+Received: uuid=5f3710ac-d470-4aeb-9e28-b6f84454a3a7, flag=0, same, 0
+Leader is decided to 5f3710ac-d470-4aeb-9e28-b6f84454a3a7.
+Sent: uuid=5f3710ac-d470-4aeb-9e28-b6f84454a3a7, flag=1
+Received: uuid=5f3710ac-d470-4aeb-9e28-b6f84454a3a7, flag=1, same, 1
+Ignored: uuid=5f3710ac-d470-4aeb-9e28-b6f84454a3a7, flag=1
