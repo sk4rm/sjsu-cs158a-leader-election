@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import socket
 import threading
@@ -11,7 +12,7 @@ from pathlib import Path
 @dataclass
 class Node:
     config: Config
-    log_path: str = "log.txt"
+    log_path: str
 
     _id: uuid.UUID = field(default_factory=uuid.uuid4)
     _state: int = 0
@@ -25,7 +26,6 @@ class Node:
     _client_thread: threading.Thread | None = None
     _server_thread: threading.Thread | None = None
     _buffer_size: int = 4096
-    _leader_election_timeout: float = 3.0
 
     def __post_init__(self):
         self._clear_log()
@@ -61,7 +61,7 @@ class Node:
             self._log(f"Sent: uuid={message.uuid}, flag={message.flag}")
 
             try:
-                while self._forward_message.wait(self._leader_election_timeout):
+                while self._forward_message.wait():
                     with self._state_lock, self._leader_lock:
                         if not self._leader:
                             raise RuntimeError("unreachable")
@@ -84,16 +84,12 @@ class Node:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server_socket.bind(("", config.client_port))
-            server_socket.settimeout(self._leader_election_timeout)
             server_socket.listen(1)
 
             while True:
                 try:
                     (client_socket, (client_host, client_port)) = server_socket.accept()
                 except TimeoutError:
-                    print(
-                        f"shutting down server due to {self._leader_election_timeout}s of inactivity"
-                    )
                     break
 
                 with client_socket:
@@ -211,9 +207,23 @@ class Config:
 
 
 def main():
-    config = Config.from_file("config.txt")
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="config.txt",
+        help="Path to config file (default: config.txt)",
+    )
+    parser.add_argument(
+        "--log",
+        type=str,
+        default="log.txt",
+        help="Path to log file (default: log.txt)",
+    )
+    args = parser.parse_args()
 
-    node = Node(config)
+    config = Config.from_file(args.config)
+    node = Node(config, log_path=args.log)
     node.start_server()
     node.start_client()
 
