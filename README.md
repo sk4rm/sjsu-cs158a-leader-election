@@ -1,54 +1,37 @@
-# Leader election ring
+# Run the leader election program
 
-`myleprocess.py` implements leader election for the two-neighbor asynchronous
-ring in the assignment. Each process listens for its predecessor and connects
-to its successor. The first line of `config.txt` is the local listening
-endpoint. The second line is the endpoint of the successor.
-
-Messages are JSON objects with the required fields `uuid` and `flag`. A
-newline separates messages on the persistent TCP connection. A flag of `0`
-means that the election is still running. A flag of `1` announces the leader.
-The process forwards only candidate UUIDs greater than its own, then forwards
-the leader announcement once.
-
-## Run a local three-process ring
-
-Create one config file for each process. For ports `5001`, `5002`, and `5003`,
-use these endpoint pairs:
-
-```text
-# process 1
-127.0.0.1,5001
-127.0.0.1,5002
-
-# process 2
-127.0.0.1,5002
-127.0.0.1,5003
-
-# process 3
-127.0.0.1,5003
-127.0.0.1,5001
-```
-
-Start each process from its own terminal. The `--uuid` option makes a demo
-repeatable, but it is optional because the default is `uuid.uuid4()`.
+Open three terminals in the project directory. Run one command in each
+terminal, then press Enter after all three programs have started.
 
 ```powershell
-& "C:\Users\skarm\AppData\Local\Microsoft\WinGet\Links\uv.exe" run python myleprocess.py --config config1.txt --log log1.txt --uuid 00000000-0000-0000-0000-000000000001
-& "C:\Users\skarm\AppData\Local\Microsoft\WinGet\Links\uv.exe" run python myleprocess.py --config config2.txt --log log2.txt --uuid 00000000-0000-0000-0000-000000000003
-& "C:\Users\skarm\AppData\Local\Microsoft\WinGet\Links\uv.exe" run python myleprocess.py --config config3.txt --log log3.txt --uuid 00000000-0000-0000-0000-000000000002
+# Terminal 1
+uv run python myleprocess.py --config config.txt --log log.txt
+
+# Terminal 2
+uv run python myleprocess.py --config config2.txt --log log2.txt
+
+# Terminal 3
+uv run python myleprocess.py --config config3.txt --log log3.txt
 ```
 
-Each terminal prints the same result:
+Example execution:
 
 ```text
-leader is 00000000-0000-0000-0000-000000000003
-```
+Terminal 1
+[server] server started at port 5001
+Press Enter to start client...
+[client] client connected to 127.0.0.1:5002
+leader is c5711d54-4ecc-43a3-adf5-595818b03a86
 
-## Tests
+Terminal 2
+[server] server started at port 5002
+Press Enter to start client...
+[client] client connected to 127.0.0.1:5003
+leader is c5711d54-4ecc-43a3-adf5-595818b03a86
 
-Run the tests with the requested `uv` executable:
-
-```powershell
-& "C:\Users\skarm\AppData\Local\Microsoft\WinGet\Links\uv.exe" run python -m unittest discover -s tests -v
+Terminal 3
+[server] server started at port 5003
+Press Enter to start client...
+[client] client connected to 127.0.0.1:5001
+leader is c5711d54-4ecc-43a3-adf5-595818b03a86
 ```
