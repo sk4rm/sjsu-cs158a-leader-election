@@ -17,7 +17,7 @@ class Node:
 
     _id: uuid.UUID = field(default_factory=uuid.uuid4)
     _state: int = 0
-    _leader: uuid.UUID | None = None
+    _leader_id: uuid.UUID | None = None
 
     _state_lock: threading.Lock = field(default_factory=threading.Lock)
     _leader_lock: threading.Lock = field(default_factory=threading.Lock)
@@ -56,6 +56,27 @@ class Node:
         with open(self.log_path, mode="a") as log_file:
             log_file.write(message + "\n")
 
+    def _receive_message(
+        self,
+        client_socket: socket.socket,
+        buf: bytes,
+        client_host: str,
+        client_port: int,
+    ) -> tuple[Message | None, bytes]:
+        while b"}" not in buf:
+            chunk = client_socket.recv(self._buffer_size)
+            if not chunk:
+                print(
+                    f"[server] client {client_host}:{client_port} disconnected",
+                    file=sys.stderr,
+                )
+                return None, b""
+            buf += chunk
+
+        payload, _, buf = buf.partition(b"}")
+        payload += b"}"
+        return Message.decode(payload), buf
+
     def _connect(self, id: uuid.UUID, config: Config):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
             client_socket.connect((config.peer_host, config.peer_port))
@@ -69,15 +90,17 @@ class Node:
             self._log(f"Sent: uuid={message.uuid}, flag={message.flag}")
 
             try:
+                # Wait for server to notify us before forwarding message.
                 while self._forward_message.wait(self._client_timeout):
                     with self._state_lock, self._leader_lock:
-                        if not self._leader:
-                            raise RuntimeError("unreachable")
+                        assert self._leader_id
 
-                        message = Message(self._leader, self._state)
+                        # Forward the message.
+                        message = Message(self._leader_id, self._state)
                         client_socket.sendall(message.encode())
                         self._log(f"Sent: uuid={message.uuid}, flag={message.flag}")
 
+                        # Clear the notification.
                         self._forward_message.clear()
             except TimeoutError:
                 pass
@@ -106,24 +129,15 @@ class Node:
                 with client_socket:
                     buf = b""
                     while True:
-                        while b"}" not in buf:
-                            chunk = client_socket.recv(self._buffer_size)
-                            if not chunk:
-                                print(
-                                    f"[server] client {client_host}:{client_port} disconnected",
-                                    file=sys.stderr,
-                                )
-                                buf = b""
-                                break
-                            buf += chunk
-
-                        if not buf:
+                        message, buf = self._receive_message(
+                            client_socket,
+                            buf,
+                            client_host,
+                            client_port,
+                        )
+                        if message is None:
                             break
 
-                        payload, _, buf = buf.partition(b"}")
-                        payload += b"}"
-
-                        message = Message.decode(payload)
                         comparison = (
                             "greater"
                             if message.uuid > self._id
@@ -137,26 +151,32 @@ class Node:
                                 f"Received: uuid={message.uuid}, flag={message.flag}, {comparison}, {self._state}"
                             )
 
+                            # Ignore smaller IDs because they will never be leaders.
+                            # Ignore any ID if flag=1 because leader is already elected.
                             if message.uuid < self._id or self._state == 1:
                                 self._log(
                                     f"Ignored: uuid={message.uuid}, flag={message.flag}"
                                 )
                                 continue
 
+                            # Receiving own ID means our ID beat other IDs in the ring, so self-elect.
                             if message.uuid == self._id and message.flag == 0:
                                 self._state = 1
-                                self._leader = self._id
+                                self._leader_id = self._id
+
+                            # Otherwise, just forward the best ID so far.
                             else:
                                 self._state = message.flag
-                                self._leader = message.uuid
+                                self._leader_id = message.uuid
 
                             if self._state == 1:
-                                self._log(f"Leader is decided to {self._leader}.")
+                                self._log(f"Leader is decided to {self._leader_id}.")
 
+                        # Let the client thread know that it needs to forward a message.
                         self._forward_message.set()
 
             with self._leader_lock:
-                print(f"leader is {self._leader}")
+                print(f"leader is {self._leader_id}")
 
     def start_client(self):
         assert self._client_thread
@@ -202,6 +222,7 @@ class Config:
     def from_file(cls, path: str | Path):
         path = Path(path)
 
+        # Schema is pretty much fixed to be two lines of CSV for host and port.
         (
             (first_host, first_port),
             (second_host, second_port),

@@ -1,11 +1,11 @@
-# Run the leader election program
+# Programming Assignment 2: Leader Election
 
 Open three terminals in the project directory. Run one command in each
 terminal, then press Enter after all three programs have started.
 
 ```powershell
 # Terminal 1
-uv run python myleprocess.py --config config.txt --log log.txt
+uv run python myleprocess.py --config config.txt --log log1.txt
 
 # Terminal 2
 uv run python myleprocess.py --config config2.txt --log log2.txt
