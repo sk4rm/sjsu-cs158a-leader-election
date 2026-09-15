@@ -62,20 +62,21 @@ class Node:
         buf: bytes,
         client_host: str,
         client_port: int,
-    ) -> tuple[Message | None, bytes]:
+    ) -> tuple[bytes | None, bytes]:
         while b"}" not in buf:
             chunk = client_socket.recv(self._buffer_size)
+
             if not chunk:
                 print(
                     f"[server] client {client_host}:{client_port} disconnected",
                     file=sys.stderr,
                 )
                 return None, b""
+
             buf += chunk
 
         payload, _, buf = buf.partition(b"}")
-        payload += b"}"
-        return Message.decode(payload), buf
+        return payload + b"}", buf
 
     def _connect(self, id: uuid.UUID, config: Config):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
@@ -124,19 +125,27 @@ class Node:
                 try:
                     (client_socket, (client_host, client_port)) = server_socket.accept()
                 except TimeoutError:
+                    print(
+                        f"[server] shutting down due to  {self._server_timeout}s of inactivity",
+                        file=sys.stderr,
+                    )
                     break
 
                 with client_socket:
                     buf = b""
+
                     while True:
-                        message, buf = self._receive_message(
+                        payload, buf = self._receive_message(
                             client_socket,
                             buf,
                             client_host,
                             client_port,
                         )
-                        if message is None:
+
+                        if payload is None:
                             break
+
+                        message = Message.decode(payload)
 
                         comparison = (
                             "greater"

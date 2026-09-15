@@ -1,7 +1,11 @@
-My ID: 145d7cd0-cc51-4fef-83d8-884c1069be12
-Received: uuid=dc398407-c096-4d26-9b6b-a9a152409c90, flag=0, greater, 0
-Sent: uuid=145d7cd0-cc51-4fef-83d8-884c1069be12, flag=0
-Sent: uuid=dc398407-c096-4d26-9b6b-a9a152409c90, flag=0
-Received: uuid=dc398407-c096-4d26-9b6b-a9a152409c90, flag=1, greater, 0
-Leader is decided to dc398407-c096-4d26-9b6b-a9a152409c90.
-Sent: uuid=dc398407-c096-4d26-9b6b-a9a152409c90, flag=1
+My ID: d719a7d0-df48-45b1-84a6-051af5833637
+Received: uuid=09b3395c-e9fb-4bc3-87dc-2e80d2911ed3, flag=0, less, 0
+Ignored: uuid=09b3395c-e9fb-4bc3-87dc-2e80d2911ed3, flag=0
+Received: uuid=91f43f57-b8b9-4477-b0ab-a0683db52750, flag=0, less, 0
+Ignored: uuid=91f43f57-b8b9-4477-b0ab-a0683db52750, flag=0
+Sent: uuid=d719a7d0-df48-45b1-84a6-051af5833637, flag=0
+Received: uuid=d719a7d0-df48-45b1-84a6-051af5833637, flag=0, same, 0
+Leader is decided to d719a7d0-df48-45b1-84a6-051af5833637.
+Sent: uuid=d719a7d0-df48-45b1-84a6-051af5833637, flag=1
+Received: uuid=d719a7d0-df48-45b1-84a6-051af5833637, flag=1, same, 1
+Ignored: uuid=d719a7d0-df48-45b1-84a6-051af5833637, flag=1
