@@ -97,11 +97,23 @@ class Node:
                     break
 
                 with client_socket:
+                    buf = b""
                     while True:
-                        payload = client_socket.recv(self._buffer_size)
-                        if not payload:
-                            print(f"client {client_host}:{client_port} disconnected")
+                        while b"}" not in buf:
+                            chunk = client_socket.recv(self._buffer_size)
+                            if not chunk:
+                                print(
+                                    f"client {client_host}:{client_port} disconnected"
+                                )
+                                buf = b""
+                                break
+                            buf += chunk
+
+                        if not buf:
                             break
+
+                        payload, _, buf = buf.partition(b"}")
+                        payload += b"}"
 
                         message = Message.decode(payload)
                         comparison = (
