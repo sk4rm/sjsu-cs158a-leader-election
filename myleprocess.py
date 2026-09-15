@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import socket
+import sys
 import threading
 import uuid
 from dataclasses import dataclass, field
@@ -25,7 +26,10 @@ class Node:
 
     _client_thread: threading.Thread | None = None
     _server_thread: threading.Thread | None = None
+
     _buffer_size: int = 4096
+    _server_timeout: float = 5.0
+    _client_timeout: float = 3.0
 
     def __post_init__(self):
         self._clear_log()
@@ -54,14 +58,18 @@ class Node:
 
     def _connect(self, id: uuid.UUID, config: Config):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
-            client_socket.connect((config.server_host, config.server_port))
+            client_socket.connect((config.peer_host, config.peer_port))
+            print(
+                f"[client] client connected to {config.peer_host}:{config.peer_port}",
+                file=sys.stderr,
+            )
 
             message = Message(id, 0)
             client_socket.sendall(message.encode())
             self._log(f"Sent: uuid={message.uuid}, flag={message.flag}")
 
             try:
-                while self._forward_message.wait():
+                while self._forward_message.wait(self._client_timeout):
                     with self._state_lock, self._leader_lock:
                         if not self._leader:
                             raise RuntimeError("unreachable")
@@ -74,16 +82,19 @@ class Node:
             except TimeoutError:
                 pass
             except ConnectionAbortedError:
-                print("connection aborted by local host")
+                print("[client] connection aborted by local host", file=sys.stderr)
             except ConnectionResetError:
-                print("connection reset by remote peer")
-
-            print(f"leader is {self._leader}")
+                print("[client] connection reset by remote peer", file=sys.stderr)
 
     def _listen(self, config: Config):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+            print(
+                f"[server] server started at port {config.server_port}", file=sys.stderr
+            )
+
             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server_socket.bind(("", config.client_port))
+            server_socket.bind(("", config.server_port))
+            server_socket.settimeout(self._server_timeout)
             server_socket.listen(1)
 
             while True:
@@ -99,7 +110,8 @@ class Node:
                             chunk = client_socket.recv(self._buffer_size)
                             if not chunk:
                                 print(
-                                    f"client {client_host}:{client_port} disconnected"
+                                    f"[server] client {client_host}:{client_port} disconnected",
+                                    file=sys.stderr,
                                 )
                                 buf = b""
                                 break
@@ -143,16 +155,17 @@ class Node:
 
                         self._forward_message.set()
 
-    def start_client(self):
-        if not self._client_thread:
-            raise RuntimeError("client thread not initialized")
+            with self._leader_lock:
+                print(f"leader is {self._leader}")
 
-        input("Press Enter to start client\n")
+    def start_client(self):
+        assert self._client_thread
+
+        input("Press Enter to start client...\n")
         self._client_thread.start()
 
     def start_server(self):
-        if not self._server_thread:
-            raise RuntimeError("server thread not initialized")
+        assert self._server_thread
 
         self._server_thread.start()
 
@@ -180,10 +193,10 @@ class Message:
 
 @dataclass
 class Config:
-    client_host: str
-    client_port: int
     server_host: str
     server_port: int
+    peer_host: str
+    peer_port: int
 
     @classmethod
     def from_file(cls, path: str | Path):
